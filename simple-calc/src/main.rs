@@ -14,7 +14,6 @@ pub async fn handle_advance(
         .ok_or("Missing payload")?;
     // TODO: add application logic here
     println!("payload is: {}", _payload);
-
     // convert hex to string
     let bytes = hex::decode(&_payload[2..]).expect("Decoding failed");
     let string_data = String::from_utf8(bytes).expect("Invalid UTF-8 sequence");
@@ -22,47 +21,52 @@ pub async fn handle_advance(
 
     // convert string to json
     let json_data = parse(&string_data).expect("Parse failed");
+    let method = json_data["method"]
+        .as_str()
+        .expect("failed to unwrap method");
+    println!("Method is: {}", method);
 
-    if let JsonValue::Object(object) = json_data.clone() {
-        let method = object
-            .get("method")
-            .expect("conversion to object failed")
-            .as_str()
-            .expect("conversion to string failed");
-        let value_1 = object
-            .get("value_1")
-            .expect("conversion to object failed")
-            .as_f64()
-            .expect("conversion to float failed");
-        let value_2 = object
-            .get("value_2")
-            .expect("conversion to object failed")
-            .as_f64()
-            .expect("conversion to float failed");
-        let mut result: Option<f64> = None;
+    let value_1 = json_data["value_1"]
+        .as_f64()
+        .expect("failed to unwrap value 1");
 
-        match method {
-            "add" => result = Some(value_1 + value_2),
-            "sub" => result = Some(value_1 - value_2),
-            "div" => result = Some(value_1 / value_2),
-            "mul" => result = Some(value_1 * value_2),
-            _ => {
-                println!("Unknown method");
-            }
+    let value_2 = json_data["value_2"]
+        .as_f64()
+        .expect("failed to unwrap value 2");
+    println!(
+        "method: {}, value_1: {}, value_2: {}",
+        method, value_1, value_2
+    );
+    let mut result: Option<f64> = None;
+
+    match method {
+        "add" => result = Some(value_1 + value_2),
+        "sub" => result = Some(value_1 - value_2),
+        "div" => result = Some(value_1 / value_2),
+        "mul" => result = Some(value_1 * value_2),
+        _ => {
+            println!("Unknown method");
         }
-        println!("result is {:?}", result.unwrap());
-
-        // convert float to hex representation
-        let hex_value = format!("0x{}", hex::encode(result.unwrap().to_string()));
-
-        // Send out a notice with the result
-        let request = hyper::Request::builder()
-            .method(hyper::Method::POST)
-            .header(hyper::header::CONTENT_TYPE, "application/json")
-            .uri(format!("{}/notice", &_server_addr))
-            .body(hyper::Body::from(hex_value))?;
-        let _response = _client.request(request).await?;
     }
+
+    println!("result is {:?}", result.expect("Method not executed"));
+
+    // convert float to hex representation
+    let hex_value = format!("0x{}", hex::encode(result.unwrap().to_string()));
+    println!("hex_value is {:?}", hex_value);
+
+    let response = object! {
+        "payload" => format!("{}", hex_value)
+    };
+
+    // Send out a notice with the result
+    let request = hyper::Request::builder()
+        .method(hyper::Method::POST)
+        .header(hyper::header::CONTENT_TYPE, "application/json")
+        .uri(format!("{}/notice", &_server_addr))
+        .body(hyper::Body::from(response.dump()))?;
+    let response = _client.request(request).await?;
+    println!("Notice sending status {}", response.status());
 
     Ok("accept")
 }
