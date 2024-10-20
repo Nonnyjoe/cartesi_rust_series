@@ -51,31 +51,24 @@ pub async fn handle_advance(
     // convert string to json
     let json_data = parse(&string_data).expect("Parse failed");
 
-    if let JsonValue::Object(object) = json_data.clone() {
-        let method = object
-            .get("method")
-            .expect("method not found")
-            .as_str()
-            .expect("conversion to str failed");
-        match method {
-            "create" => create_student(&json_data, all_students, _server_addr, _client).await,
-            "delete" => delete_student(&json_data, all_students, _server_addr, _client).await,
-            "sign_attendance" => {
-                sign_attendance(
-                    msg_sender.to_string().to_lowercase(),
-                    all_students,
-                    _server_addr,
-                    _client,
-                )
-                .await;
-            }
-            _ => {
-                println!("Unknown method");
-                emit_report("Function not implemented", _server_addr, _client).await;
-            }
+    let method = json_data["method"].as_str().ok_or("Missing method")?;
+    match method {
+        "create" => create_student(&json_data, all_students, _server_addr, _client).await,
+        "delete" => delete_student(&json_data, all_students, _server_addr, _client).await,
+        "sign_attendance" => {
+            sign_attendance(
+                msg_sender.to_string().to_lowercase(),
+                all_students,
+                _server_addr,
+                _client,
+            )
+            .await;
+        }
+        _ => {
+            println!("Unknown method");
+            emit_report("Function not implemented", _server_addr, _client).await;
         }
     }
-
     Ok("accept")
 }
 async fn create_student(

@@ -4,17 +4,17 @@ FROM ubuntu:22.04 AS builder
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=1.72.0
+    RUST_VERSION=1.81.0
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN <<EOF
 set -e
 apt update
 apt install -y --no-install-recommends \
-    build-essential=12.9ubuntu3 \
-    ca-certificates=20230311ubuntu0.22.04.1 \
-    g++-riscv64-linux-gnu=4:11.2.0--1ubuntu1 \
-    wget=1.21.2-2ubuntu1
+        build-essential=12.9ubuntu3 \
+        ca-certificates \
+        g++-riscv64-linux-gnu=4:11.2.0--1ubuntu1 \
+        wget
 EOF
 
 RUN set -eux; \
@@ -41,9 +41,9 @@ RUN rustup target add riscv64gc-unknown-linux-gnu
 
 WORKDIR /opt/cartesi/dapp
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --target riscv64gc-unknown-linux-gnu
 
-FROM --platform=linux/riscv64 riscv64/ubuntu:22.04
+FROM riscv64/ubuntu:22.04
 
 ARG MACHINE_EMULATOR_TOOLS_VERSION=0.14.1
 ADD https://github.com/cartesi/machine-emulator-tools/releases/download/v${MACHINE_EMULATOR_TOOLS_VERSION}/machine-emulator-tools-v${MACHINE_EMULATOR_TOOLS_VERSION}.deb /
@@ -63,12 +63,15 @@ rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/*
 useradd --create-home --user-group dapp
 EOF
 
-ENV PATH="/opt/cartesi/bin:/opt/cartesi/dapp:${PATH}"
+WORKDIR /var/opt/cartesi-app
 
-WORKDIR /opt/cartesi/dapp
+ENV PATH="/opt/cartesi/bin:${PATH}"
+
 COPY --from=builder /opt/cartesi/dapp/target/riscv64gc-unknown-linux-gnu/release/dapp .
+
 
 ENV ROLLUP_HTTP_SERVER_URL="http://127.0.0.1:5004"
 
 ENTRYPOINT ["rollup-init"]
-CMD ["dapp"]
+
+CMD ["/var/opt/cartesi-app/dapp"]
